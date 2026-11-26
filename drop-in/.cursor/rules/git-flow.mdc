@@ -1,0 +1,37 @@
+---
+description: Enforce git-flow branch and commit format (ticket key, no suffix)
+alwaysApply: true
+---
+
+# Git Flow
+
+## Branch
+
+After a tracker ticket exists, create and check out a branch **before** writing code:
+
+```bash
+git checkout -b feature/<TICKET-KEY>
+```
+
+- Exact key from the tracker (`PROJ-123`). Do not invent keys.
+- Allowed prefixes: `feature/`, `bugfix/`, `hotfix/`.
+- **No slug after the number** — `feature/PROJ-123` only, never `feature/PROJ-123-short-name`.
+- Do not work on `main` / `master` / `dev` / `test` / `demo` / `prod` for ticket work.
+
+## Commit
+
+Format (enforced by `.githooks/commit-msg`):
+
+```text
+feature/PROJ-123 - Short description
+```
+
+Types: `feature`, `bugfix`, `hotfix`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`, `style`, `release`.
+
+- Commit only when the human asks.
+- Never pass `--no-verify`.
+- Prefer HEREDOC for the message body.
+
+## Merge requests
+
+Target the integration branch (`dev` unless the repo says otherwise). Open ready for review unless the human asks for draft.
