@@ -2,14 +2,15 @@
 # Серверная проверка git flow (GitLab server hooks, GitHub Enterprise Server, hooks/ bare-репозитория).
 # Отклоняет пуш, если имя ветки, формат коммита, ключ или почта автора не по правилам.
 # Скопируйте как hooks/pre-receive на сервере и сделайте исполняемым.
-# Ставьте после первого пуша env-веток: их новые коммиты хук тоже проверяет.
+# Подходит и как глобальный хук на весь инстанс: первый пуш в пустой репозиторий,
+# вики и дизайны GitLab пропускаются; охват задаётся PROJECT_INCLUDE_RE / PROJECT_EXCLUDE_RE.
 # GitHub.com pre-receive не поддерживает — там rulesets (см. README).
 #
 # stdin: <oldrev> <newrev> <refname>
 set -eu
 
 # --- Настройки: держите их такими же, как в .githooks/git-flow.conf ---
-KEY_RE='[A-Z][A-Z0-9_]*-[0-9]+(_[a-z]+(_[0-9]+)?)?'
+KEY_RE='[A-Z][A-Z0-9_]*-[0-9]+(_(jira|clickup|yandex)(_[0-9]+)?)?'
 BRANCH_TYPES='feature|bugfix|hotfix'
 COMMIT_TYPES='feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release'
 ALLOW_BRANCH_SUFFIX=0
@@ -17,6 +18,16 @@ ENV_BRANCH_RE='^(main|master|dev|develop|test|qa|uat|stage|staging|preprod|demo|
 SKIP_BRANCH_RE='^(dependabot|renovate)/'
 SKIP_SUBJECT_RE='^(Merge |Revert |Bump |chore\(deps(-dev)?\): |Update dependency )'
 ALLOWED_EMAIL_RE=''
+
+# --- Только сервер (в git-flow.conf их нет) ---
+# Путь проекта: GL_PROJECT_PATH (GitLab, «group/project»), GITHUB_REPO_NAME (GHES, «owner/repo»),
+# иначе абсолютный каталог репозитория («/srv/git/backend/app.git») — тогда пишите regex без ^.
+# Пусто — проверять все проекты. GitLab/GHES: '^(backend|frontend)/'; свой сервер: '/(backend|frontend)/'
+PROJECT_INCLUDE_RE=''
+# Проекты вне flow (инфраструктура, зеркала). Пример: '^(infra|mirrors)/'
+PROJECT_EXCLUDE_RE=''
+# Служебные репозитории GitLab: вики, дизайны, сниппеты (сравнивается с каталогом репозитория).
+SKIP_REPO_DIR_RE='(\.(wiki|design)\.git|/@snippets/.*)/?$'
 # --- конец настроек ---
 
 if [ "$ALLOW_BRANCH_SUFFIX" = 1 ]; then
@@ -25,10 +36,23 @@ else
   BRANCH_RE="^($BRANCH_TYPES)/($KEY_RE)\$"
 fi
 COMMIT_RE="^($COMMIT_TYPES)/($KEY_RE) - .+"
+# «слово-число» в хвосте: PanDev без учёта регистра прочтёт его как второй ключ.
+TAIL_KEY_RE='(^|-)[a-z][a-z0-9]*-[0-9]'
 
 matches() { printf '%s' "$1" | grep -qE "$2"; }
 is_zero_sha() { case "$1" in *[!0]*) return 1 ;; *) return 0 ;; esac; }
 is_skip_subject() { [ -n "$SKIP_SUBJECT_RE" ] && matches "$1" "$SKIP_SUBJECT_RE"; }
+
+repo_dir=$(git rev-parse --absolute-git-dir 2>/dev/null || pwd)
+project=${GL_PROJECT_PATH:-${GITHUB_REPO_NAME:-$repo_dir}}
+[ -n "$SKIP_REPO_DIR_RE" ] && matches "$repo_dir" "$SKIP_REPO_DIR_RE" && exit 0
+case "${GL_REPOSITORY:-}" in snippet-*) exit 0 ;; esac
+[ -n "$PROJECT_INCLUDE_RE" ] && ! matches "$project" "$PROJECT_INCLUDE_RE" && exit 0
+[ -n "$PROJECT_EXCLUDE_RE" ] && matches "$project" "$PROJECT_EXCLUDE_RE" && exit 0
+
+# Пустой репозиторий: весь первый пуш не проверяем — Initial commit, README из интерфейса,
+# импорт существующей истории (git push --all / --mirror) с любыми ветками и коммитами.
+[ -z "$(git for-each-ref --count=1 refs/heads)" ] && exit 0
 
 while read -r oldrev newrev refname
 do
@@ -43,6 +67,10 @@ do
   if ! matches "$branch" "$ENV_BRANCH_RE"; then
     if ! matches "$branch" "$BRANCH_RE"; then
       echo "git-flow: ветка «${branch}» должна называться «feature/PROJ-123» (префиксы: ${BRANCH_TYPES})." >&2
+      exit 1
+    fi
+    if matches "$(printf '%s' "$branch" | sed -E "s#^($BRANCH_TYPES)/($KEY_RE)##")" "$TAIL_KEY_RE"; then
+      echo "git-flow: в хвосте ветки «${branch}» есть «слово-число» — PanDev прочтёт его как второй ключ задачи." >&2
       exit 1
     fi
     bkey=$(printf '%s' "$branch" | sed -E "s#^($BRANCH_TYPES)/($KEY_RE).*#\\2#")

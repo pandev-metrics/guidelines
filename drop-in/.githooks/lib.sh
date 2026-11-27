@@ -9,6 +9,8 @@ else
   BRANCH_RE="^($BRANCH_TYPES)/($KEY_RE)\$"
 fi
 COMMIT_RE="^($COMMIT_TYPES)/($KEY_RE) - .+"
+# «слово-число» в хвосте: PanDev без учёта регистра прочтёт его как второй ключ.
+TAIL_KEY_RE='(^|-)[a-z][a-z0-9]*-[0-9]'
 
 matches() { printf '%s' "$1" | grep -qE "$2"; }
 
@@ -37,10 +39,17 @@ branch_prefix() {
 
 strip_fixup() { printf '%s' "$1" | sed -E 's/^((fixup|squash|amend)! )+//'; }
 
+branch_tail() { printf '%s' "$1" | sed -E "s#^($BRANCH_TYPES)/($KEY_RE)##"; }
+
 check_branch_name() {
   is_env_branch "$1" && return 0
   is_skip_branch "$1" && return 0
-  matches "$1" "$BRANCH_RE" && return 0
+  if matches "$1" "$BRANCH_RE"; then
+    matches "$(branch_tail "$1")" "$TAIL_KEY_RE" || return 0
+    echo "git-flow: в хвосте ветки «${1}» есть «слово-число» — PanDev прочтёт его как второй ключ задачи." >&2
+    echo "  Уберите число из хвоста или замените дефис: feature/PROJ-123-login, а не feature/PROJ-123-proj-124." >&2
+    return 1
+  fi
   echo "git-flow: ветка «${1}» должна называться «feature/PROJ-123» (префиксы: ${BRANCH_TYPES})." >&2
   if [ "$ALLOW_BRANCH_SUFFIX" != 1 ]; then
     echo "  Хвост после ключа запрещён (ALLOW_BRANCH_SUFFIX=0 в git-flow.conf)." >&2
