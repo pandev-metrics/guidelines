@@ -7,6 +7,7 @@ set -u
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 PASS=0
 FAIL=0
+SEQ=0
 T=$(mktemp -d)
 trap 'cd /; rm -rf "$T"' EXIT INT TERM
 
@@ -52,9 +53,11 @@ setup() {
 }
 
 # Новый файл + коммит (без конфликтов при последующих merge).
+# SEQ наращиваем в текущем shell: $(…) был бы сабшеллом и сбрасывал счётчик.
 commit_msg() {
-  f="f_$(date +%s)_$RANDOM$$"
-  echo x > "$f"
+  SEQ=$((SEQ + 1))
+  f="f_${$}_${SEQ}"
+  echo "x$SEQ" > "$f"
   git add "$f"
   git commit -q -m "$1"
 }
@@ -90,7 +93,7 @@ expect PASS 'push after merging dev (other-key commits) into feature' git push o
 for key in QA2-15 MY_APP-7 PROJ-12_jira PROJ-12_jira_2; do
   git checkout -q -b "feature/$key" origin/dev
   expect PASS "commit+push key $key" sh -c "
-    f=f_\$\$\$RANDOM; echo x > \"\$f\"; git add \"\$f\"
+    f=f_${key}_\$\$; echo x > \"\$f\"; git add \"\$f\"
     git commit -q -m 'feature/$key - Ok' && git push -q origin \"feature/$key\"
   "
 done
