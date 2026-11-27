@@ -4,7 +4,7 @@
 
 Правила настраиваются в одном файле — `.githooks/git-flow.conf`. Значения по умолчанию подходят командам на Jira, YouTrack, Yandex Tracker, Linear, Task Flow и Bitrix24. Для Azure Boards и ClickUp без Custom Task IDs нужен другой формат ключа — см. «Формат ключа по трекерам».
 
-**`drop-in/` — имя папки только в этом репозитории.** В целевой проект её не кладут целиком: в **корень** репозитория копируют **содержимое** (`.githooks/`, `AGENTS.md`, `.cursor/rules/…`). Вложенный путь вроде `ваш-репо/drop-in/.githooks` хуки и Cursor не подхватят.
+`drop-in/` **— имя папки только в этом репозитории.** В целевой проект её не кладут целиком: в **корень** репозитория копируют **содержимое** (`.githooks/`, `AGENTS.md`, `.cursor/rules/…`). Вложенный путь вроде `ваш-репо/drop-in/.githooks` хуки и Cursor не подхватят.
 
 ## Канон
 
@@ -46,7 +46,7 @@ git-flow-templates/
 ├── github/
 │   └── git-flow-check.yml       ← workflow организации для GitHub без Enterprise
 └── server/
-    └── pre-receive.example      ← серверная проверка (GitLab, GHES, свой git-сервер)
+    └── pre-receive.example      ← серверная проверка (GitLab, GHES)
 ```
 
 ## Установка за 2 минуты
@@ -121,7 +121,7 @@ ClickUp-заготовка требует id от 7 символов, начин
 
 ## Совместимость с PanDev
 
-PanDev связывает работу с задачей по имени ветки: от него зависят время из IDE, AI-токены и коммиты задачи. Ключи из коммитов MR при мерже двигают задачи Task Flow по автопереходам. Ниже — что сверить в настройках PanDev, чтобы хуки и подсчёт совпадали.
+PanDev связывает работу с задачей по имени ветки: от него зависят время из IDE, AI-токены и коммиты задачи. Ниже — что сверить в настройках PanDev, чтобы хуки и подсчёт совпадали.
 
 ### Регулярки атрибуции
 
@@ -141,7 +141,7 @@ PanDev связывает работу с задачей по имени вет�
 
 Список `ENV_BRANCH_RE` в `git-flow.conf` должен совпадать с настройками PanDev:
 
-- **Интеграции → Git общее → Основные ветки** (`GENERAL_BRANCH_NAMES`, по умолчанию `dev,prod,test,master,main`, шаблон `release/*` тоже поддерживается). Только из этих веток можно выбрать событие автоперехода Task Flow («влито в develop»), и только они защищены от привязки к задаче по заголовку MR. Разрез «среда» DORA строится по основным веткам **за вычетом прод-веток**: мержи в прод-ветки считаются деплоями (частота деплоев), а не средой.
+- **Интеграции → Git общее → Основные ветки** (`GENERAL_BRANCH_NAMES`, по умолчанию `dev,prod,test,master,main`, шаблон `release/`* тоже поддерживается). Только из этих веток можно выбрать событие автоперехода Task Flow («влито в develop»), и только они защищены от привязки к задаче по заголовку MR. Разрез «среда» DORA строится по основным веткам **за вычетом прод-веток**: мержи в прод-ветки считаются деплоями (частота деплоев), а не средой.
 - **Интеграции → DORA метрики → Прод-ветки** (`DORA_PRODUCTION_BRANCHES`, по умолчанию `prod,production,master,main`). Мерж в эти ветки — деплой в прод.
 
 Если команда работает через `develop`, `stage` или `qa`, добавьте их в «Основные ветки». Если в PanDev есть ветка окружения, которой нет в `ENV_BRANCH_RE`, — добавьте её в конфиг, иначе хук не пустит в неё пуш.
@@ -177,7 +177,9 @@ PanDev засчитывает коммит по подписи автора: а�
 
 Один раз задайте те же значения, что в `git-flow.conf` (`KEY_RE`, типы веток, env-ветки, исключения). Совпадение ключа коммита с веткой и почту автора почти нигде на стороне хостинга не проверяют — это остаётся на локальных хуках и на `server/pre-receive.example`, где он доступен.
 
-### Что поставить один раз (по системе)
+### Что поставить один раз на всю систему
+
+Такой настройкой можно внести общие правила вашей git инсталяции, чтобы не было необходимости добавлять хуки в каждом репозитории. Ниже приведена таблица различных вендоров:
 
 | Система | Уровень «на всю систему» | Что закрывает | Чего нет |
 |---------|--------------------------|---------------|----------|
@@ -188,8 +190,7 @@ PanDev засчитывает коммит по подписи автора: а�
 | **GitLab.com** | Group push rules (Premium+) как шаблон для **новых** проектов группы | Имя ветки, commit message regex | Нет user pre-receive; старые проекты — править по одному или через API |
 | **Bitbucket Data Center** | Hooks на уровне **Project** (наследуются репозиториями) | Pre-receive / merge checks (плагин или свой хук по regex) | В коробке может не быть готового regex «как в `git-flow.conf`» — нужен плагин или свой хук |
 | **Bitbucket Cloud** | Project branch restrictions + обязательная сборка Pipelines (merge check «passing builds», Premium) | Кто пушит/мержит; формат — `sh .githooks/check-range` в Pipelines на PR | Формат на пуш сервером не задаётся; пуши без PR сборка не видит |
-| **Azure DevOps** | Branch policies на Project + required pipeline на protected-ветки | PR before merge; format-check в Build validation на PR в protected | Нет native regex на push; прямые пуши в незащищённые `feature/*` pipeline не видит |
-| **Свой bare git-сервер** | Общий `hooks/pre-receive` на git-хосте (symlink/копия) или `init.templateDir` для новых bare | `server/pre-receive.example` на все репозитории хоста | `init.templateDir` не обновляет уже созданные репо |
+| **Azure DevOps** | Branch policies на Project + required pipeline на protected-ветки | PR before merge; format-check в Build validation на PR в protected | Нет native regex на push; прямые пуши в незащищённые `feature/`* pipeline не видит |
 
 ### GitHub.com — organization rulesets
 
@@ -271,11 +272,7 @@ Workflow запускается на открытие PR, новые комми�
 
 ### Azure DevOps
 
-На уровне **Project** (или через шаблон политик): branch policies — обязательный PR на `main`/`dev`, запрет прямого пуша. Формат ветки и сообщения коммита встроенной политикой не проверяются: добавьте pipeline, который вызывает `sh .githooks/check-range "$SOURCE" "origin/$TARGET" HEAD "$PR_TITLE"` (ветки из `System.PullRequest.SourceBranch` / `TargetBranch` без `refs/heads/`), и назначьте его **Build validation** на защищённые ветки. Pipeline видит только PR в эти ветки — прямые пуши в незащищённые `feature/*` он не проверяет (это не замена pre-receive на каждый push).
-
-### Свой git-сервер
-
-На **git-хосте** (не на ноутбуках разработчиков): один исполняемый `hooks/pre-receive` (= `server/pre-receive.example`) во всех bare-репозиториях — symlink или копия одного файла. Для **новых** bare можно задать `init.templateDir` с этим хуком; уже созданные репо template не обновит. Не ставьте `git config --system core.hooksPath` на машины людей: это подменит локальные хуки во всех их клонах.
+На уровне **Project** (или через шаблон политик): branch policies — обязательный PR на `main`/`dev`, запрет прямого пуша. Формат ветки и сообщения коммита встроенной политикой не проверяются: добавьте pipeline, который вызывает `sh .githooks/check-range "$SOURCE" "origin/$TARGET" HEAD "$PR_TITLE"` (ветки из `System.PullRequest.SourceBranch` / `TargetBranch` без `refs/heads/`), и назначьте его **Build validation** на защищённые ветки. Pipeline видит только PR в эти ветки — прямые пуши в незащищённые `feature/`* он не проверяет (это не замена pre-receive на каждый push).
 
 ## Тесты
 
@@ -289,10 +286,6 @@ sh tests/run.sh
 
 В этом репозитории тот же прогон идёт в GitHub Actions (`.github/workflows/test.yml`) на каждый PR и на push в `main`. Ruleset на `main` требует зелёный check `test` и pull request — без прошедших тестов мерж закрыт.
 
-## Что сознательно не включено
-
-- CI-джобы на lint/test **продуктового** кода — это качество приложения, не git flow (свой прогон хуков в `.github/workflows/test.yml` есть).
-- Шаблоны MR/PR с чеклистами продукта.
-- Скрипты синхронизации env-веток.
+## Комментарии
 
 Правила меняются только в `git-flow.conf`; после правки повторите значения в `server/pre-receive.example`, в org/instance rulesets или push rules вашей git-системы. Регулярки атрибуции PanDev трогайте, только если ключ перестал разбираться встроенными парсерами (см. «Регулярки атрибуции»).
