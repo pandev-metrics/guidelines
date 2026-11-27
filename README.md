@@ -4,7 +4,7 @@
 
 Правила настраиваются в одном файле — `.githooks/git-flow.conf`. Значения по умолчанию подходят командам на Jira, YouTrack, Yandex Tracker, Linear, Task Flow и Bitrix24. Для Azure Boards и ClickUp без Custom Task IDs нужен другой формат ключа — см. «Формат ключа по трекерам».
 
-`drop-in/` **— имя папки только в этом репозитории.** В целевой проект её не кладут целиком: в **корень** репозитория копируют **содержимое** (`.githooks/`, `AGENTS.md`, `.cursor/rules/…`). Вложенный путь вроде `ваш-репо/drop-in/.githooks` хуки и Cursor не подхватят.
+**`drop-in/` — имя папки только в этом репозитории.** В целевой проект её не кладут целиком: в **корень** репозитория копируют **содержимое** (`.githooks/`, `AGENTS.md`, `.cursor/rules/…`). Вложенный путь вроде `ваш-репо/drop-in/.githooks` хуки и Cursor не подхватят.
 
 ## Канон
 
@@ -141,7 +141,7 @@ PanDev связывает работу с задачей по имени вет�
 
 Список `ENV_BRANCH_RE` в `git-flow.conf` должен совпадать с настройками PanDev:
 
-- **Интеграции → Git общее → Основные ветки** (`GENERAL_BRANCH_NAMES`, по умолчанию `dev,prod,test,master,main`, шаблон `release/`* тоже поддерживается). Только из этих веток можно выбрать событие автоперехода Task Flow («влито в develop»), и только они защищены от привязки к задаче по заголовку MR. Разрез «среда» DORA строится по основным веткам **за вычетом прод-веток**: мержи в прод-ветки считаются деплоями (частота деплоев), а не средой.
+- **Интеграции → Git общее → Основные ветки** (`GENERAL_BRANCH_NAMES`, по умолчанию `dev,prod,test,master,main`, шаблон `release/*` тоже поддерживается). Только из этих веток можно выбрать событие автоперехода Task Flow («влито в develop»), и только они защищены от привязки к задаче по заголовку MR. Разрез «среда» DORA строится по основным веткам **за вычетом прод-веток**: мержи в прод-ветки считаются деплоями (частота деплоев), а не средой.
 - **Интеграции → DORA метрики → Прод-ветки** (`DORA_PRODUCTION_BRANCHES`, по умолчанию `prod,production,master,main`). Мерж в эти ветки — деплой в прод.
 
 Если команда работает через `develop`, `stage` или `qa`, добавьте их в «Основные ветки». Если в PanDev есть ветка окружения, которой нет в `ENV_BRANCH_RE`, — добавьте её в конфиг, иначе хук не пустит в неё пуш.
@@ -179,7 +179,7 @@ PanDev засчитывает коммит по подписи автора: а�
 
 ### Что поставить один раз на всю систему
 
-Такой настройкой можно внести общие правила вашей git инсталяции, чтобы не было необходимости добавлять хуки в каждом репозитории. Ниже приведена таблица различных вендоров:
+Такой настройкой можно внести общие правила вашей git инсталляции, чтобы не было необходимости добавлять хуки в каждом репозитории. Ниже приведена таблица различных вендоров:
 
 | Система | Уровень «на всю систему» | Что закрывает | Чего нет |
 |---------|--------------------------|---------------|----------|
@@ -190,7 +190,7 @@ PanDev засчитывает коммит по подписи автора: а�
 | **GitLab.com** | Group push rules (Premium+) как шаблон для **новых** проектов группы | Имя ветки, commit message regex | Нет user pre-receive; старые проекты — править по одному или через API |
 | **Bitbucket Data Center** | Hooks на уровне **Project** (наследуются репозиториями) | Pre-receive / merge checks (плагин или свой хук по regex) | В коробке может не быть готового regex «как в `git-flow.conf`» — нужен плагин или свой хук |
 | **Bitbucket Cloud** | Project branch restrictions + обязательная сборка Pipelines (merge check «passing builds», Premium) | Кто пушит/мержит; формат — `sh .githooks/check-range` в Pipelines на PR | Формат на пуш сервером не задаётся; пуши без PR сборка не видит |
-| **Azure DevOps** | Branch policies на Project + required pipeline на protected-ветки | PR before merge; format-check в Build validation на PR в protected | Нет native regex на push; прямые пуши в незащищённые `feature/`* pipeline не видит |
+| **Azure DevOps** | Branch policies на Project + required pipeline на protected-ветки | PR before merge; format-check в Build validation на PR в protected | Нет native regex на push; прямые пуши в незащищённые `feature/*` pipeline не видит |
 
 ### GitHub.com — organization rulesets
 
@@ -272,7 +272,7 @@ Workflow запускается на открытие PR, новые комми�
 
 ### Azure DevOps
 
-На уровне **Project** (или через шаблон политик): branch policies — обязательный PR на `main`/`dev`, запрет прямого пуша. Формат ветки и сообщения коммита встроенной политикой не проверяются: добавьте pipeline, который вызывает `sh .githooks/check-range "$SOURCE" "origin/$TARGET" HEAD "$PR_TITLE"` (ветки из `System.PullRequest.SourceBranch` / `TargetBranch` без `refs/heads/`), и назначьте его **Build validation** на защищённые ветки. Pipeline видит только PR в эти ветки — прямые пуши в незащищённые `feature/`* он не проверяет (это не замена pre-receive на каждый push).
+На уровне **Project** (или через шаблон политик): branch policies — обязательный PR на `main`/`dev`, запрет прямого пуша. Формат ветки и сообщения коммита встроенной политикой не проверяются: добавьте pipeline, который вызывает `sh .githooks/check-range "$SOURCE" "origin/$TARGET" HEAD "$PR_TITLE"` (ветки из `System.PullRequest.SourceBranch` / `TargetBranch` без `refs/heads/`), и назначьте его **Build validation** на защищённые ветки. Pipeline видит только PR в эти ветки — прямые пуши в незащищённые `feature/*` он не проверяет (это не замена pre-receive на каждый push).
 
 ## Тесты
 
