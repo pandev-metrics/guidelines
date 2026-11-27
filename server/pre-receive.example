@@ -1,62 +1,77 @@
 #!/bin/sh
-# Пример server-side хука (GitLab custom hook / bare repo hooks/pre-receive).
-# Отклоняет push, если ветка или commit subject не соответствуют git flow.
+# Серверная проверка git flow (GitLab server hooks, GitHub Enterprise Server, hooks/ bare-репозитория).
+# Отклоняет пуш, если имя ветки, формат коммита, ключ или почта автора не по правилам.
 # Скопируйте как hooks/pre-receive на сервере и сделайте исполняемым.
-# Ставьте после первого пуша env-веток: их историю хук тоже проверяет.
-# GitHub.com pre-receive не поддерживает — там используйте rulesets (см. README).
+# Ставьте после первого пуша env-веток: их новые коммиты хук тоже проверяет.
+# GitHub.com pre-receive не поддерживает — там rulesets (см. README).
 #
 # stdin: <oldrev> <newrev> <refname>
 set -eu
 
-BRANCH_RE='^(feature|bugfix|hotfix)/[A-Z]+-[0-9]+$'
-COMMIT_RE='^(feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release)/[A-Z]+-[0-9]+ - .+'
-z40=0000000000000000000000000000000000000000
+# --- Настройки: держите их такими же, как в .githooks/git-flow.conf ---
+KEY_RE='[A-Z][A-Z0-9_]*-[0-9]+(_[a-z]+(_[0-9]+)?)?'
+BRANCH_TYPES='feature|bugfix|hotfix'
+COMMIT_TYPES='feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release'
+ALLOW_BRANCH_SUFFIX=0
+ENV_BRANCH_RE='^(main|master|dev|develop|test|qa|uat|stage|staging|preprod|demo|prod|production|live|stable|release/.+)$'
+SKIP_BRANCH_RE='^(dependabot|renovate)/'
+SKIP_SUBJECT_RE='^(Merge |Revert |Bump |chore\(deps(-dev)?\): |Update dependency )'
+ALLOWED_EMAIL_RE=''
+# --- конец настроек ---
 
-# Ветки без ключа задачи (защитите их отдельно branch protection)
-is_env_branch() {
-  case "$1" in
-    main|master|dev|develop|test|stage|staging|demo|prod|stable|release/*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
+if [ "$ALLOW_BRANCH_SUFFIX" = 1 ]; then
+  BRANCH_RE="^($BRANCH_TYPES)/($KEY_RE)(-[a-z0-9][a-z0-9-]*)?\$"
+else
+  BRANCH_RE="^($BRANCH_TYPES)/($KEY_RE)\$"
+fi
+COMMIT_RE="^($COMMIT_TYPES)/($KEY_RE) - .+"
+
+matches() { printf '%s' "$1" | grep -qE "$2"; }
+is_zero_sha() { case "$1" in *[!0]*) return 1 ;; *) return 0 ;; esac; }
+is_skip_subject() { [ -n "$SKIP_SUBJECT_RE" ] && matches "$1" "$SKIP_SUBJECT_RE"; }
 
 while read -r oldrev newrev refname
 do
-  [ -n "$newrev" ] || continue
-  if [ "$newrev" = "$z40" ]; then
-    continue
-  fi
-
-  branch=${refname#refs/heads/}
   case "$refname" in
-    refs/heads/*) ;;
+    refs/heads/*) branch=${refname#refs/heads/} ;;
     *) continue ;;
   esac
+  is_zero_sha "$newrev" && continue
+  [ -n "$SKIP_BRANCH_RE" ] && matches "$branch" "$SKIP_BRANCH_RE" && continue
 
-  if ! is_env_branch "$branch"; then
-    if ! printf '%s' "$branch" | grep -qE "$BRANCH_RE"; then
-      echo "git-flow: ветка «${branch}» должна быть feature/PROJ-123 (или bugfix/hotfix), без суффикса." >&2
+  bkey=''
+  if ! matches "$branch" "$ENV_BRANCH_RE"; then
+    if ! matches "$branch" "$BRANCH_RE"; then
+      echo "git-flow: ветка «${branch}» должна называться «feature/PROJ-123» (префиксы: ${BRANCH_TYPES})." >&2
       exit 1
     fi
+    bkey=$(printf '%s' "$branch" | sed -E "s#^($BRANCH_TYPES)/($KEY_RE).*#\\2#")
   fi
 
-  if [ "$oldrev" = "$z40" ]; then
-    # Новая ветка: коммиты, которых ещё нет на других ветках/тегах
-    commits=$(git rev-list --max-count=100 "$newrev" --not --branches --tags 2>/dev/null || git rev-list --max-count=50 "$newrev")
-  else
-    commits=$(git rev-list "${oldrev}..${newrev}")
-  fi
-
-  for sha in $commits; do
+  # Только коммиты, которых ещё нет ни в одной ветке и теге сервера:
+  # влитый в фичу dev не проверяется на ключ фичи.
+  for sha in $(git rev-list "$newrev" --not --branches --tags); do
     subj=$(git log -1 --format=%s "$sha")
-    case "$subj" in
-      Merge*|Revert*) continue ;;
-    esac
-    subj=$(printf '%s' "$subj" | sed -E 's/^((fixup|squash|amend)! )+//')
-    if ! printf '%s' "$subj" | grep -qE "$COMMIT_RE"; then
-      echo "git-flow: коммит ${sha}: нужно «feature/PROJ-123 - Описание»" >&2
-      echo "  ${subj}" >&2
+    is_skip_subject "$subj" && continue
+    clean=$(printf '%s' "$subj" | sed -E 's/^((fixup|squash|amend)! )+//')
+    if ! matches "$clean" "$COMMIT_RE"; then
+      echo "git-flow: коммит ${sha}: сообщение должно быть вида «feature/PROJ-123 - Описание»." >&2
+      echo "  Дано: ${subj}" >&2
       exit 1
+    fi
+    if [ -n "$bkey" ]; then
+      ckey=$(printf '%s' "$clean" | sed -E "s#^($COMMIT_TYPES)/($KEY_RE) - .*#\\2#")
+      if [ "$ckey" != "$bkey" ]; then
+        echo "git-flow: коммит ${sha}: ключ ${ckey} не совпадает с ключом ветки ${bkey}." >&2
+        exit 1
+      fi
+    fi
+    if [ -n "$ALLOWED_EMAIL_RE" ]; then
+      email=$(git log -1 --format=%ae "$sha")
+      if ! matches "$email" "$ALLOWED_EMAIL_RE"; then
+        echo "git-flow: коммит ${sha}: почта автора «${email}» не рабочая." >&2
+        exit 1
+      fi
     fi
   done
 done

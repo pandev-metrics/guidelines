@@ -1,50 +1,49 @@
 # Git Flow — drop-in templates
 
-Готовый набор файлов без правок под конкретный стек.
-Цель — гарантировать соблюдение git flow людьми и агентами: имя ветки с ключом задачи, формат коммита, запрет суффиксов после ключа.
+Набор файлов, который кладут в репозиторий без правок кода. Он гарантирует, что люди и AI-агенты ведут ветки и коммиты по одним правилам: ключ задачи в имени ветки, формат коммита, тот же ключ в коммитах ветки.
 
-**`drop-in/` — имя папки только в этом репозитории-гайдлайне.** В целевой проект её не кладут целиком: в **корень** репозитория копируют **содержимое** (` .githooks/`, `AGENTS.md`, `.cursor/rules/…`). Вложенный путь вроде `ваш-репо/drop-in/.githooks` хуки и Cursor не подхватят.
+Правила настраиваются в одном файле — `.githooks/git-flow.conf`. Значения по умолчанию подходят командам на Jira, YouTrack, Yandex Tracker, Linear, Task Flow и Bitrix24. Для Azure Boards и ClickUp без Custom Task IDs нужен другой формат ключа — см. «Формат ключа по трекерам».
+
+**`drop-in/` — имя папки только в этом репозитории.** В целевой проект её не кладут целиком: в **корень** репозитория копируют **содержимое** (`.githooks/`, `AGENTS.md`, `.cursor/rules/…`). Вложенный путь вроде `ваш-репо/drop-in/.githooks` хуки и Cursor не подхватят.
 
 ## Канон
 
 | Правило | Формат |
 |---------|--------|
-| Feature / bugfix / hotfix ветка | `feature/PROJ-123`, `bugfix/PROJ-123`, `hotfix/PROJ-123` |
-| Суффикс после номера | **запрещён** (`feature/PROJ-123-login` — нет) |
-| Коммит | `feature/PROJ-123 - Краткое описание` |
+| Рабочая ветка | `feature/PROJ-123`, `bugfix/PROJ-123`, `hotfix/PROJ-123` — заводится **до начала работы** |
+| Хвост после ключа | по умолчанию запрещён (`feature/PROJ-123-login` — нет), см. «Почему без хвоста» |
+| Коммит | `feature/PROJ-123 - Краткое описание`, ключ — как у ветки, тип может отличаться |
+| Заголовок MR/PR | как у коммита: `feature/PROJ-123 - Краткое описание` |
+| Почта автора | рабочая, та же, что у человека в трекере и PanDev |
 | База для фич | `dev` (или ваша интеграционная ветка) |
-| Env-ветки без ключа | `main` · `master` · `dev` · `develop` · `test` · `stage` · `staging` · `demo` · `prod` · `stable` · `release/*` |
-| Служебные коммиты | `Merge …`, `Revert …`; у `fixup!` / `squash!` / `amend!` проверяется исходный subject |
-
-Ключ задачи: `[A-Z]+-[0-9]+` (Jira, YouTrack, Linear, Task Flow и т.п.).
+| Общие ветки и окружения | `main` · `master` · `dev` · `develop` · `test` · `qa` · `uat` · `stage` · `staging` · `preprod` · `demo` · `prod` · `production` · `live` · `stable` · `release/*` |
+| Не проверяются | ветки `dependabot/*`, `renovate/*`; сообщения `Merge …`, `Revert …`, `Bump …`, `chore(deps): …`, `Update dependency …`; у `fixup!`/`squash!`/`amend!` проверяется исходное сообщение |
 
 ## Что внутри
 
 ```
 git-flow-templates/
-├── README.md                 ← этот файл
-├── POLICY.md                 ← одностраничная политика (опционально в репо)
-├── drop-in/                  ← содержимое → в корень целевого репо (не саму папку)
+├── README.md                    ← этот файл
+├── POLICY.md                    ← одностраничная политика для команды
+├── drop-in/                     ← содержимое → в корень целевого репо (не саму папку)
 │   ├── .githooks/
-│   │   ├── install.sh        ← включает хуки: core.hooksPath=.githooks
-│   │   ├── commit-msg        ← формат сообщения
-│   │   ├── prepare-commit-msg← подставляет имя ветки в subject
-│   │   └── pre-push          ← имена пушащихся веток + subject новых коммитов
-│   ├── AGENTS.md             ← правила для AI-агентов
+│   │   ├── git-flow.conf        ← все правила: формат ключа, типы, env-ветки, исключения, почта
+│   │   ├── lib.sh               ← общие проверки (не править)
+│   │   ├── install.sh           ← включает хуки: core.hooksPath=.githooks
+│   │   ├── commit-msg           ← формат, ключ ветки, почта
+│   │   ├── prepare-commit-msg   ← дописывает «тип/КЛЮЧ - » из имени ветки
+│   │   └── pre-push             ← имена пушащихся веток + новые коммиты
+│   ├── AGENTS.md                ← правила для AI-агентов
 │   └── .cursor/rules/
-│       └── git-flow.mdc      ← Cursor always-on rule
-├── node/                     ← доп. слой для JS/TS (husky + commitlint)
-│   ├── commitlint.config.mjs
+│       └── git-flow.mdc         ← Cursor always-on rule
+├── node/                        ← если в проекте уже husky
 │   ├── package.json.snippet
-│   └── .husky/
-│       ├── commit-msg
-│       ├── prepare-commit-msg
-│       └── pre-push
+│   └── .husky/                  ← обёртки, вызывают те же скрипты из .githooks
 └── server/
-    └── pre-receive.example   ← server-side отказ пуша (GitLab, GHES, свой git-сервер)
+    └── pre-receive.example      ← серверная проверка (GitLab, GHES, свой git-сервер)
 ```
 
-## Установка за 2 минуты (универсальный путь)
+## Установка за 2 минуты
 
 Из корня **вашего** репозитория скопируйте файлы из `drop-in/`, **не** создавая подпапку `drop-in`:
 
@@ -59,7 +58,9 @@ cp path/to/git-flow-templates/drop-in/.cursor/rules/git-flow.mdc .cursor/rules/
 #   .githooks/   AGENTS.md   .cursor/rules/git-flow.mdc
 # НЕ: drop-in/.githooks/...
 
-# 2. Включить хуки (один раз на клон)
+# 2. Проверить формат ключа и список env-веток в .githooks/git-flow.conf
+
+# 3. Включить хуки (один раз на клон)
 sh .githooks/install.sh
 ```
 
@@ -68,29 +69,87 @@ sh .githooks/install.sh
 ```bash
 git checkout -b feature/PROJ-1
 echo "test" >> README.md && git add README.md
-git commit -m "плохое сообщение"          # должно упасть
-git commit -m "feature/PROJ-1 - Ок"     # должно пройти
+git commit -m "feature/PROJ-2 - Чужой ключ"   # упадёт: ключ не совпадает с веткой
+git commit -m "Описание"                       # пройдёт как «feature/PROJ-1 - Описание»
 ```
 
-Для новых клонов добавьте в README проекта:
+Для новых клонов добавьте в README проекта `sh .githooks/install.sh` или вызовите его из `package.json` / Makefile.
 
-```bash
-sh .githooks/install.sh
-```
+### Если в проекте husky
 
-или в `package.json` / Makefile вызов того же скрипта.
+husky сам владеет `core.hooksPath`, поэтому `install.sh` не запускайте.
 
-## Node / husky (опционально)
+1. Скопируйте содержимое `drop-in/`, как выше.
+2. Скопируйте `node/.husky/commit-msg`, `prepare-commit-msg`, `pre-push` в `.husky/` — это обёртки над скриптами из `.githooks`, правила остаются в `git-flow.conf`.
+3. Добавьте зависимость из `node/package.json.snippet` и выполните `npm install`.
 
-Если уже используете husky, вместо `core.hooksPath=.githooks`:
+## Формат ключа по трекерам
 
-1. Скопируйте `node/commitlint.config.mjs` в корень (`.mjs` грузится и в CommonJS-, и в ESM-проектах).
-2. Скопируйте `node/.husky/commit-msg`, `prepare-commit-msg`, `pre-push`.
-3. Добавьте зависимости из `node/package.json.snippet`.
-4. `npx husky` (или `npm prepare`).
-5. Правила для агентов всё равно возьмите из `drop-in/AGENTS.md` и `drop-in/.cursor/rules/`.
+Ключ задаётся в `KEY_RE` в `git-flow.conf`. Ветка и коммиты проверяются по нему одинаково.
 
-Не включайте одновременно `core.hooksPath=.githooks` и husky — один механизм хуков.
+| Трекер | Ветка | `KEY_RE` |
+|---|---|---|
+| Jira, YouTrack, Yandex Tracker, Linear, Task Flow, Bitrix24 | `feature/PROJ-123`, `feature/QA2-15`, `feature/MY_APP-7`, `feature/BX-3` | по умолчанию |
+| Task Flow, задачи после импорта с занятым ключом | `feature/PROJ-12_jira`, `feature/PROJ-12_jira_2` | по умолчанию |
+| Azure Boards | `feature/4521` | `[0-9]+` |
+| ClickUp без Custom Task IDs | `feature/CU-869dmarzn`, `feature/869dmarzn` | `(CU-)?[0-9a-z]{6,12}` |
+| ClickUp с Custom Task IDs | `feature/DEV-123` | по умолчанию |
+| Notion | `feature/TASK-42` (уникальный ID с номером) | по умолчанию |
+
+Ключ в ветке пишется заглавными буквами, даже если трекер принимает любой регистр. Форма `BX123` (Bitrix24 без дефиса) и Notion-ключи с id страницы пакетом не поддерживаются.
+
+## Почему без хвоста после ключа
+
+Запрет хвоста — правило команды, а не требование PanDev. PanDev связывает `feature/PROJ-123-login` с задачей `PROJ-123`. Связь ломается, только если в хвосте окажется ключ другой существующей задачи (`feature/PROJ-123-PROJ-124`): такая ветка неоднозначна и ни к чему не привязывается. Запрет хвоста исключает это полностью.
+
+Цена запрета:
+
+- ветки, которые создают сами трекеры (`PROJ-123-summary` из Jira, `user/eng-123-title` из Linear, `CU-…_title` из ClickUp), придётся переименовывать;
+- два агента не могут параллельно работать над одной задачей: git не даёт держать одну ветку в двух worktree, а второе имя с хвостом запрещено.
+
+Если цена выше пользы, поставьте `ALLOW_BRANCH_SUFFIX=1`. Хвост тогда разрешён только в нижнем регистре (`feature/PROJ-123-login`): второй ключ в нём не поместится, и неоднозначности не будет.
+
+## Совместимость с PanDev
+
+PanDev связывает работу с задачей по имени ветки: от него зависят время из IDE, AI-токены и коммиты задачи. Ключи из коммитов MR при мерже двигают задачи Task Flow по автопереходам. Ниже — что сверить в настройках PanDev, чтобы хуки и подсчёт совпадали.
+
+### Регулярки атрибуции
+
+Если вы поменяли `KEY_RE` или трекер не из списка по умолчанию, задайте то же правило в **Интеграции → Атрибуция задач** (Branch, MR Name и Commit Name регулярки; серверные настройки `BRANCH_ISSUE_REGEXPS`, `MR_TITLE_ISSUE_REGEXPS`, `COMMIT_MESSAGE_ISSUE_REGEXPS`). Иначе хуки пропустят ветку, а PanDev её не разберёт.
+
+### Общие ветки и прод-ветки
+
+Список `ENV_BRANCH_RE` в `git-flow.conf` должен совпадать с настройками PanDev:
+
+- **Интеграции → Git общее → Основные ветки** (`GENERAL_BRANCH_NAMES`, по умолчанию `dev,prod,test,master,main`, шаблон `release/*` тоже поддерживается). Только из этих веток можно выбрать событие автоперехода Task Flow («влито в develop»), только мержи в них попадают в разрез «среда» DORA, и только они защищены от привязки к задаче по заголовку MR.
+- **Интеграции → DORA метрики → Прод-ветки** (`DORA_PRODUCTION_BRANCHES`, по умолчанию `prod,production,master,main`). Мерж в эти ветки — деплой в прод.
+
+Если команда работает через `develop`, `stage` или `qa`, добавьте их в «Основные ветки». Если в PanDev есть ветка окружения, которой нет в `ENV_BRANCH_RE`, — добавьте её в конфиг, иначе хук не пустит в неё пуш.
+
+### `bugfix` и `hotfix` в DORA
+
+По умолчанию PanDev считает ветки с префиксами `bugfix`, `hotfix` и `fix` исправлением сбоя (**Интеграции → DORA метрики**: «Ветка багов», «Ветка хотфиксов»; `DORA_FAILURE_BRANCH_PREFIXES`):
+
+- мерж такой ветки в прод — сбойный деплой, он входит в долю сбоев (Change Failure Rate) и время восстановления;
+- мерж такой ветки в общую ветку (`dev`) тоже записывается как релизное событие для этих метрик.
+
+Поэтому в `POLICY.md` `bugfix/` и `hotfix/` — только для проблем, дошедших до прода. Баг, пойманный до релиза, чинят в ветке фичи или в `feature/<ключ задачи-бага>`. Если команда вкладывает в `bugfix` другой смысл, поправьте префиксы в настройках DORA.
+
+`hotfix` по умолчанию не входит в «исправления» (`DORA_BUGFIX_BRANCH_PREFIXES` = `bugfix,bug`): влитый `hotfix` в разбивке «фичи / исправления» не попадает никуда. Добавьте `hotfix` туда, если это важно для отчёта.
+
+### Заголовок MR/PR и squash
+
+PanDev читает заголовок MR: по умолчанию берёт из него ключ только в форме `feat(PROJ-1): …` и использует тип изменения для DORA. Пакет задаёт заголовок в формате коммита — `feature/PROJ-1 - …`. Тогда тип изменения PanDev берёт из префикса ветки.
+
+Заголовок в формате коммита нужен и для squash-мержа: сообщением squash-коммита становится заголовок MR (в GitLab — шаблон `%{title}` по умолчанию, на GitHub — заголовок PR с `(#N)`). Заголовок вида `feat(PROJ-1): Логин` не пройдёт серверную проверку, и MR не вольётся («Prevented by server hooks» в GitLab).
+
+### Почта автора коммита
+
+PanDev засчитывает коммит по подписи автора: алиас, затем почта или логин, затем формы имени. Коммит с личной почтой (`me@gmail.com`) или с почтой облачного агента ничей, пока администратор не заведёт алиас.
+
+- Каждый задаёт `git config user.email` — рабочую почту, как в PanDev.
+- Агенты коммитят от имени человека, а не своей учётки.
+- Проверку домена включает `ALLOWED_EMAIL_RE` в `git-flow.conf` (например, `'@company\.com$'`): тогда `commit-msg`, `pre-push` и серверный хук не пропустят чужую почту.
 
 ## Серверная проверка (рекомендуется)
 
@@ -98,23 +157,29 @@ sh .githooks/install.sh
 
 ### GitLab self-managed, GitHub Enterprise Server, свой git-сервер
 
-Положите `server/pre-receive.example` как `pre-receive` (GitLab server hooks / GHES pre-receive hooks / `hooks/` bare-репозитория) и поправьте список env-веток под себя. Ставьте хук после первого пуша env-веток: их новые коммиты он тоже проверяет, и `Initial commit` в пустой репозиторий не пройдёт.
+Положите `server/pre-receive.example` как `pre-receive` (GitLab server hooks / GHES pre-receive hooks / `hooks/` bare-репозитория). Настройки в начале файла держите такими же, как в `git-flow.conf`. Ставьте хук после первого пуша env-веток: их новые коммиты он тоже проверяет, и `Initial commit` в пустой репозиторий не пройдёт.
+
+Коммиты, которые создаёт сам GitLab, тоже проходят проверку. В настройках проекта GitLab (Settings → Merge requests) задайте:
+
+- **Merge suggestions commit message template:** `%{branch_name} - Apply %{suggestions_count} suggestion(s) to %{files_count} file(s)` (без хвоста после ключа это даёт правильный формат);
+- **Squash commit message template:** оставьте `%{title}` и пишите заголовок MR в формате коммита.
+
+В Web IDE пишите сообщение коммита в том же формате: подставленное по умолчанию «Update file …» не пройдёт.
 
 ### GitHub.com
 
 Пользовательских pre-receive хуков на GitHub.com нет. Те же правила задаются rulesets (Settings → Rules → Rulesets):
 
-1. **Branch ruleset на все ветки, кроме env** — правило *Restrict branch names*, шаблон-regex `^(feature|bugfix|hotfix)/[A-Z]+-[0-9]+$`.
-2. **Commit message pattern** — regex `^((Merge|Revert).*|((fixup|squash|amend)! )*(feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release)/[A-Z]+-[0-9]+ - .+)`.
-3. **Branch ruleset на `dev` / `prod` / `main`** — *Require a pull request before merging*, запрет force push и удаления.
+1. **Branch ruleset на все ветки, кроме общих и `dependabot/**`, `renovate/**`** — правило *Restrict branch names*, regex `^(feature|bugfix|hotfix)/[A-Z][A-Z0-9_]*-[0-9]+(_[a-z]+(_[0-9]+)?)?$`.
+2. **Commit message pattern** — regex `^((Merge |Revert |Bump |chore\(deps(-dev)?\): |Update dependency ).*|((fixup|squash|amend)! )*(feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release)/[A-Z][A-Z0-9_]*-[0-9]+(_[a-z]+(_[0-9]+)?)? - .+)`. Squash-коммит берёт сообщение из заголовка PR, поэтому заголовок пишите в том же формате.
+3. **Branch ruleset на общие ветки** — *Require a pull request before merging*, запрет force push и удаления.
 
-Ограничения по метаданным (имя ветки, сообщение коммита) доступны не на всех тарифах GitHub — проверьте свой план. Если их нет, оставьте локальные хуки и защиту env-веток через PR.
+Совпадение ключа коммита с веткой и почту rulesets не проверяют — это остаётся на локальных хуках. Ограничения по метаданным (имя ветки, сообщение коммита) доступны не на всех тарифах GitHub; эти правила на реальном репозитории не проверялись — сверьтесь с документацией своего плана.
 
 ## Что сознательно не включено
 
 - CI-джобы на lint/test — это качество кода, не git flow.
 - Шаблоны MR/PR с чеклистами продукта.
-- Скрипты sync env-веток.
-- Привязка к конкретному трекеру или префиксу проекта (`PDM`, `PS`…).
+- Скрипты синхронизации env-веток.
 
-Менять префиксы типов (`feature`/`bugfix`/…) и список env-веток можно в одних и тех же regex во всех файлах пакета — они согласованы.
+Правила меняются только в `git-flow.conf`; после правки повторите значения в `server/pre-receive.example`, в rulesets GitHub и в регулярках атрибуции PanDev.

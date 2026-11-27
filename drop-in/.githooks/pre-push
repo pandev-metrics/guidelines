@@ -1,52 +1,32 @@
 #!/bin/sh
-# Перед пушем: имя каждой пушащейся ветки и subject каждого коммита, которого ещё нет на remote.
-# Env-ветки без ключа пропускаются. Обход: --no-verify (закрывается server pre-receive).
+# Перед пушем: имя каждой пушащейся ветки и коммиты, которых ещё нет на remote
+# (формат, ключ ветки, почта автора). Обход --no-verify закрывает серверная проверка.
 set -eu
-
-BRANCH_RE='^(feature|bugfix|hotfix)/[A-Z]+-[0-9]+$'
-COMMIT_RE='^(feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release)/[A-Z]+-[0-9]+ - .+'
-z40=0000000000000000000000000000000000000000
-
-is_env_branch() {
-  case "$1" in
-    main|master|dev|develop|test|stage|staging|demo|prod|stable|release/*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
+. "$(dirname "$0")/lib.sh"
 
 # stdin: <local_ref> <local_sha> <remote_ref> <remote_sha>
 while read -r local_ref local_sha remote_ref remote_sha
 do
   [ -n "${local_sha:-}" ] || continue
-  [ "$local_sha" = "$z40" ] && continue
+  is_zero_sha "$local_sha" && continue
 
   case "$remote_ref" in
     refs/heads/*) branch=${remote_ref#refs/heads/} ;;
     *) continue ;;
   esac
+  is_skip_branch "$branch" && continue
+  check_branch_name "$branch"
 
-  if ! is_env_branch "$branch" && ! printf '%s' "$branch" | grep -qE "$BRANCH_RE"; then
-    echo "git-flow: имя ветки должно быть feature/PROJ-123 (или bugfix/hotfix), без суффикса." >&2
-    echo "Пушится: ${branch}" >&2
-    exit 1
-  fi
-
-  if [ "$remote_sha" = "$z40" ]; then
-    commits=$(git rev-list "$local_sha" --not --remotes)
+  if ! is_zero_sha "$remote_sha" && git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+    commits=$(git rev-list "$local_sha" "^$remote_sha" --not --remotes)
   else
-    commits=$(git rev-list "${remote_sha}..${local_sha}")
+    commits=$(git rev-list "$local_sha" --not --remotes)
   fi
 
   for sha in $commits; do
     subj=$(git log -1 --format=%s "$sha")
-    case "$subj" in
-      Merge*|Revert*) continue ;;
-    esac
-    subj=$(printf '%s' "$subj" | sed -E 's/^((fixup|squash|amend)! )+//')
-    if ! printf '%s' "$subj" | grep -qE "$COMMIT_RE"; then
-      echo "git-flow: коммит ${sha} не в формате «feature/PROJ-123 - Описание»:" >&2
-      echo "  ${subj}" >&2
-      exit 1
-    fi
+    check_subject "$subj" "$branch" "$sha"
+    is_skip_subject "$subj" && continue
+    check_email "$(git log -1 --format=%ae "$sha")" "коммит $sha"
   done
 done

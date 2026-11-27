@@ -1,73 +1,48 @@
 #!/bin/sh
-# Подставляет имя ветки в subject, если его ещё нет.
-# - «fix: rest» / «fix: rest» → «feature/PROJ-123 - rest»
-# - голый «rest» → «feature/PROJ-123 - rest»
-# Merge/squash не трогает. Финальную проверку делает commit-msg / pre-push.
+# Дописывает «тип/КЛЮЧ - » из имени ветки к первой строке сообщения:
+# «fix: что-то» и «что-то» → «feature/PROJ-123 - что-то».
+# Merge, squash, fixup! и уже оформленные сообщения не трогает. Проверяет commit-msg.
 set -eu
+. "$(dirname "$0")/lib.sh"
 
 MSG_FILE=${1:-}
 SOURCE=${2:-}
-
 [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] || exit 0
 
 case "$SOURCE" in
   merge|squash) exit 0 ;;
 esac
 
-BRANCH=$(git branch --show-current 2>/dev/null || true)
-[ -n "$BRANCH" ] || BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || true)
-[ -n "$BRANCH" ] || exit 0
+branch=$(git branch --show-current 2>/dev/null || true)
+prefix=$(branch_prefix "$branch")
+[ -n "$prefix" ] || exit 0
 
-case "$BRANCH" in
-  feature/*|bugfix/*|hotfix/*) ;;
-  *) exit 0 ;;
+first=$(head -1 "$MSG_FILE")
+[ -n "$first" ] || exit 0
+case "$first" in
+  fixup!*|squash!*|amend!*|\#*) exit 0 ;;
 esac
+is_skip_subject "$first" && exit 0
+matches "$first" "^($COMMIT_TYPES)/($KEY_RE) - " && exit 0
 
-if ! printf '%s' "$BRANCH" | grep -qE '^(feature|bugfix|hotfix)/[A-Z]+-[0-9]+$'; then
-  exit 0
-fi
-
-read -r FIRST_LINE < "$MSG_FILE" || true
-[ -n "$FIRST_LINE" ] || exit 0
-
-case "$FIRST_LINE" in
-  Merge*|Revert*|fixup!*|squash!*|amend!*) exit 0 ;;
-esac
-
-case "$FIRST_LINE" in
-  *"$BRANCH"*) exit 0 ;;
-esac
-
-# Уже type/KEY - … (другой ключ) — не переписываем
-if printf '%s' "$FIRST_LINE" | grep -qE '^(feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release)/[A-Z]+-[0-9]+ - '; then
-  exit 0
-fi
-
-REST=$FIRST_LINE
-
-# «type: rest» → rest
-case "$FIRST_LINE" in
+rest=$first
+case "$first" in
   *:*)
-    PREFIX=${FIRST_LINE%%:*}
-    BODY=${FIRST_LINE#*:}
-    BODY=$(printf '%s' "$BODY" | sed -e 's/^[[:space:]]*//')
-    case "$PREFIX" in
-      *[[:space:]]*| "") ;;
+    word=${first%%:*}
+    body=$(printf '%s' "${first#*:}" | sed -e 's/^[[:space:]]*//')
+    case "$word" in
+      *[[:space:]]*|"") ;;
       *)
-        case "$BODY" in
-          //*) ;;
-          *)
-            [ -n "$BODY" ] && REST=$BODY
-            ;;
+        case "$body" in
+          //*|"") ;;
+          *) rest=$body ;;
         esac
         ;;
     esac
     ;;
 esac
 
-NEW_FIRST_LINE="$BRANCH - $REST"
-
-TMP=${MSG_FILE}.tmp
-printf '%s\n' "$NEW_FIRST_LINE" > "$TMP"
-tail -n +2 "$MSG_FILE" >> "$TMP" 2>/dev/null || true
-mv "$TMP" "$MSG_FILE"
+tmp=${MSG_FILE}.tmp
+printf '%s - %s\n' "$prefix" "$rest" > "$tmp"
+tail -n +2 "$MSG_FILE" >> "$tmp"
+mv "$tmp" "$MSG_FILE"
