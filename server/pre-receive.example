@@ -1,0 +1,64 @@
+#!/bin/sh
+# Пример server-side хука (GitLab custom hook / bare repo hooks/pre-receive).
+# Отклоняет push, если ветка или commit subject не соответствуют git flow.
+# Скопируйте как hooks/pre-receive на сервере и сделайте исполняемым.
+# Ставьте после первого пуша env-веток: их историю хук тоже проверяет.
+# GitHub.com pre-receive не поддерживает — там используйте rulesets (см. README).
+#
+# stdin: <oldrev> <newrev> <refname>
+set -eu
+
+BRANCH_RE='^(feature|bugfix|hotfix)/[A-Z]+-[0-9]+$'
+COMMIT_RE='^(feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release)/[A-Z]+-[0-9]+ - .+'
+z40=0000000000000000000000000000000000000000
+
+# Ветки без ключа задачи (защитите их отдельно branch protection)
+is_env_branch() {
+  case "$1" in
+    main|master|dev|develop|test|demo|prod|stable|release/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+while read -r oldrev newrev refname
+do
+  [ -n "$newrev" ] || continue
+  if [ "$newrev" = "$z40" ]; then
+    continue
+  fi
+
+  branch=${refname#refs/heads/}
+  case "$refname" in
+    refs/heads/*) ;;
+    *) continue ;;
+  esac
+
+  if ! is_env_branch "$branch"; then
+    if ! printf '%s' "$branch" | grep -qE "$BRANCH_RE"; then
+      echo "git-flow: ветка «${branch}» должна быть feature/PROJ-123 (или bugfix/hotfix), без суффикса." >&2
+      exit 1
+    fi
+  fi
+
+  if [ "$oldrev" = "$z40" ]; then
+    # Новая ветка: коммиты, которых ещё нет на других ветках/тегах
+    commits=$(git rev-list --max-count=100 "$newrev" --not --branches --tags 2>/dev/null || git rev-list --max-count=50 "$newrev")
+  else
+    commits=$(git rev-list "${oldrev}..${newrev}")
+  fi
+
+  for sha in $commits; do
+    subj=$(git log -1 --format=%s "$sha")
+    case "$subj" in
+      Merge*|Revert*) continue ;;
+    esac
+    subj=$(printf '%s' "$subj" | sed -E 's/^((fixup|squash|amend)! )+//')
+    if ! printf '%s' "$subj" | grep -qE "$COMMIT_RE"; then
+      echo "git-flow: коммит ${sha}: нужно «feature/PROJ-123 - Описание»" >&2
+      echo "  ${subj}" >&2
+      exit 1
+    fi
+  done
+done
+
+exit 0

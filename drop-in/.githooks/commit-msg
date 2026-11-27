@@ -1,0 +1,21 @@
+#!/bin/sh
+# Гарантия формата коммита: «feature/PROJ-123 - Описание».
+# Merge* / Revert* пропускаются; у fixup!/squash!/amend! проверяется исходный subject.
+set -eu
+
+MSG_FILE=$1
+head=$(head -1 "$MSG_FILE")
+
+case "$head" in
+  Merge*|Revert*) exit 0 ;;
+esac
+
+subj=$(printf '%s' "$head" | sed -E 's/^((fixup|squash|amend)! )+//')
+
+# type/KEY - subject  (KEY = ABC-123, без суффикса после номера)
+if ! printf '%s' "$subj" | grep -qE '^(feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release)/[A-Z]+-[0-9]+ - .+'; then
+  echo "git-flow: сообщение коммита должно быть вида:" >&2
+  echo "  feature/PROJ-123 - Описание" >&2
+  echo "Дано: ${head}" >&2
+  exit 1
+fi
