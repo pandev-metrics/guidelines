@@ -1,0 +1,24 @@
+#!/bin/sh
+# Проверка PR/MR в CI: имя ветки, заголовок и коммиты диапазона по правилам git-flow.conf.
+# Использование: sh .githooks/check-range <ветка> <база> <голова> [заголовок PR]
+# Пример: sh .githooks/check-range "$HEAD_REF" "origin/$BASE_REF" HEAD "$PR_TITLE"
+set -eu
+. "$(dirname "$0")/lib.sh"
+
+branch=${1:?ветка}
+base=${2:?база}
+head=${3:?голова}
+title=${4:-}
+
+is_skip_branch "$branch" && exit 0
+check_branch_name "$branch"
+
+if [ -n "$title" ] && ! check_subject "$title" "$branch" ""; then
+  echo "  Это заголовок PR/MR: при squash он станет сообщением коммита." >&2
+  exit 1
+fi
+
+for sha in $(git rev-list "$base..$head"); do
+  check_subject "$(git log -1 --format=%s "$sha")" "$branch" "$sha"
+  check_email "$(git log -1 --format=%ae "$sha")" "коммит $sha"
+done

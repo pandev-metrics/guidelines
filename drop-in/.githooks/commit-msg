@@ -1,0 +1,14 @@
+#!/bin/sh
+# Формат сообщения, ключ текущей ветки и почта автора для создаваемого коммита.
+set -eu
+. "$(dirname "$0")/lib.sh"
+
+head=$(head -1 "$1")
+branch=$(git branch --show-current 2>/dev/null || true)
+
+is_skip_branch "$branch" && exit 0
+check_subject "$head" "$branch" ""
+is_skip_subject "$head" && exit 0
+
+email=$(git var GIT_AUTHOR_IDENT | sed -E 's/.*<([^>]*)>.*/\1/')
+check_email "$email" ""

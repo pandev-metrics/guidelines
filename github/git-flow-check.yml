@@ -1,0 +1,33 @@
+# Проверка git flow на каждом PR — для GitHub без Enterprise (нет правил на имя ветки и коммиты).
+# Положите в центральный репозиторий организации (.github/workflows/git-flow-check.yml)
+# и подключите правилом организации «Require workflows to pass before merging».
+# Правила берутся из .githooks/ проверяемого репозитория (drop-in), поэтому drop-in там обязателен.
+name: git-flow
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  git-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Check branch, PR title and commits
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [ ! -f .githooks/check-range ]; then
+            echo "git-flow: в репозитории нет .githooks/ из drop-in — скопируйте его (см. README guidelines)." >&2
+            exit 1
+          fi
+          sh .githooks/check-range "$HEAD_REF" "origin/$BASE_REF" HEAD "$PR_TITLE"

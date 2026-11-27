@@ -1,0 +1,32 @@
+#!/bin/sh
+# Перед пушем: имя каждой пушащейся ветки и коммиты, которых ещё нет на remote
+# (формат, ключ ветки, почта автора). Обход --no-verify закрывает серверная проверка.
+set -eu
+. "$(dirname "$0")/lib.sh"
+
+# stdin: <local_ref> <local_sha> <remote_ref> <remote_sha>
+while read -r local_ref local_sha remote_ref remote_sha
+do
+  [ -n "${local_sha:-}" ] || continue
+  is_zero_sha "$local_sha" && continue
+
+  case "$remote_ref" in
+    refs/heads/*) branch=${remote_ref#refs/heads/} ;;
+    *) continue ;;
+  esac
+  is_skip_branch "$branch" && continue
+  check_branch_name "$branch"
+
+  if ! is_zero_sha "$remote_sha" && git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+    commits=$(git rev-list "$local_sha" "^$remote_sha" --not --remotes)
+  else
+    commits=$(git rev-list "$local_sha" --not --remotes)
+  fi
+
+  for sha in $commits; do
+    subj=$(git log -1 --format=%s "$sha")
+    check_subject "$subj" "$branch" "$sha"
+    is_skip_subject "$subj" && continue
+    check_email "$(git log -1 --format=%ae "$sha")" "коммит $sha"
+  done
+done

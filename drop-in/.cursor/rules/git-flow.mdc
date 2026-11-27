@@ -1,0 +1,42 @@
+---
+description: Enforce git-flow branch and commit format (ticket key, no suffix, same key in commits)
+alwaysApply: true
+---
+
+# Git Flow
+
+Rules are configured in `.githooks/git-flow.conf` and enforced by the hooks in `.githooks/`.
+
+## Branch
+
+After a tracker ticket exists, create and check out a branch **before editing any file**:
+
+```bash
+git checkout -b feature/<TICKET-KEY>
+```
+
+- Exact key from the tracker (`PROJ-123`). Do not invent keys.
+- Prefixes: `feature/` (new work, and bugs found before release), `bugfix/` (bug that reached production), `hotfix/` (urgent production fix).
+- **No slug after the number** — `feature/PROJ-123` only, never `feature/PROJ-123-short-name`.
+- If the tool created a worktree branch (`claude/…`, `cursor/…`, `codex/…`), rename it before the first commit: `git branch -m feature/<TICKET-KEY>`.
+- Confirm with `git branch --show-current` that the ticket branch is checked out before editing files.
+- Do not work on `main` / `master` / `dev` / `test` / `stage` / `demo` / `prod` for ticket work.
+
+## Commit
+
+Format (enforced by `.githooks/commit-msg`):
+
+```text
+feature/PROJ-123 - Short description
+```
+
+- The key must be the branch key; a commit with another key is rejected (merging it would move that other task across statuses).
+- The type may differ from the branch prefix: `feature`, `bugfix`, `hotfix`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`, `style`, `release`.
+- Commit as the human you work for: `git config user.email` must be their work email, not an agent or service address.
+- Commit only when the human asks.
+- Never pass `--no-verify`.
+- Prefer HEREDOC for the message body.
+
+## Merge requests
+
+Title in commit format: `feature/PROJ-123 - Short description` (it becomes the squash commit message). Target the integration branch (`dev` unless the repo says otherwise). Open ready for review unless the human asks for draft.

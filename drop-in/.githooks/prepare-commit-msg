@@ -1,0 +1,48 @@
+#!/bin/sh
+# Дописывает «тип/КЛЮЧ - » из имени ветки к первой строке сообщения:
+# «fix: что-то» и «что-то» → «feature/PROJ-123 - что-то».
+# Merge, squash, fixup! и уже оформленные сообщения не трогает. Проверяет commit-msg.
+set -eu
+. "$(dirname "$0")/lib.sh"
+
+MSG_FILE=${1:-}
+SOURCE=${2:-}
+[ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] || exit 0
+
+case "$SOURCE" in
+  merge|squash) exit 0 ;;
+esac
+
+branch=$(git branch --show-current 2>/dev/null || true)
+prefix=$(branch_prefix "$branch")
+[ -n "$prefix" ] || exit 0
+
+first=$(head -1 "$MSG_FILE")
+[ -n "$first" ] || exit 0
+case "$first" in
+  fixup!*|squash!*|amend!*|\#*) exit 0 ;;
+esac
+is_skip_subject "$first" && exit 0
+matches "$first" "^($COMMIT_TYPES)/($KEY_RE) - " && exit 0
+
+rest=$first
+case "$first" in
+  *:*)
+    word=${first%%:*}
+    body=$(printf '%s' "${first#*:}" | sed -e 's/^[[:space:]]*//')
+    case "$word" in
+      *[[:space:]]*|"") ;;
+      *)
+        case "$body" in
+          //*|"") ;;
+          *) rest=$body ;;
+        esac
+        ;;
+    esac
+    ;;
+esac
+
+tmp=${MSG_FILE}.tmp
+printf '%s - %s\n' "$prefix" "$rest" > "$tmp"
+tail -n +2 "$MSG_FILE" >> "$tmp"
+mv "$tmp" "$MSG_FILE"
