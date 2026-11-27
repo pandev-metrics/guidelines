@@ -282,7 +282,7 @@ Workflow запускается на открытие PR, новые комми�
 sh tests/run.sh
 ```
 
-Скрипт поднимает временный bare-remote и working tree, копирует `drop-in/.githooks`, включает их и прогоняет сценарии: формат и ключ коммита, первый пуш поверх legacy history, merge env в feature, суффикс ветки, ключи Jira/Task Flow, Azure-preset, dependabot, env-ветки, почта автора, husky-обёртки, `server/pre-receive.example` (в том числе как глобальный хук: первый пуш в пустой репозиторий, вики, сниппеты, охват по `GL_PROJECT_PATH` и по каталогу), `.githooks/check-range` для CI, совпадение настроек конфига и серверного хука. Exit 1 при любом несовпадении.
+Скрипт поднимает временный bare-remote и working tree, копирует `drop-in/.githooks`, включает их и прогоняет сценарии: формат и ключ коммита, первый пуш поверх legacy history, merge env в feature, суффикс ветки, ключи Jira/Task Flow, Azure-preset, dependabot, env-ветки, почта автора, husky-обёртки, `server/pre-receive.example` (в том числе как глобальный хук: первый пуш в пустой репозиторий, вики, сниппеты, охват по `GL_PROJECT_PATH` и `GITHUB_REPO_NAME`), `.githooks/check-range` для CI, совпадение настроек конфига и серверного хука. Exit 1 при любом несовпадении.
 
 В этом репозитории тот же прогон идёт в GitHub Actions (`.github/workflows/test.yml`) на каждый PR и на push в `main`. Ruleset на `main` требует зелёный check `test` и pull request — без прошедших тестов мерж закрыт.
 

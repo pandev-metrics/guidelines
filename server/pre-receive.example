@@ -1,5 +1,5 @@
 #!/bin/sh
-# Серверная проверка git flow (GitLab server hooks, GitHub Enterprise Server, hooks/ bare-репозитория).
+# Серверная проверка git flow (GitLab server hooks, GitHub Enterprise Server).
 # Отклоняет пуш, если имя ветки, формат коммита, ключ или почта автора не по правилам.
 # Скопируйте как hooks/pre-receive на сервере и сделайте исполняемым.
 # Подходит и как глобальный хук на весь инстанс: первый пуш в пустой репозиторий,
@@ -20,9 +20,8 @@ SKIP_SUBJECT_RE='^(Merge |Revert |Bump |chore\(deps(-dev)?\): |Update dependency
 ALLOWED_EMAIL_RE=''
 
 # --- Только сервер (в git-flow.conf их нет) ---
-# Путь проекта: GL_PROJECT_PATH (GitLab, «group/project»), GITHUB_REPO_NAME (GHES, «owner/repo»),
-# иначе абсолютный каталог репозитория («/srv/git/backend/app.git») — тогда пишите regex без ^.
-# Пусто — проверять все проекты. GitLab/GHES: '^(backend|frontend)/'; свой сервер: '/(backend|frontend)/'
+# Путь проекта: GL_PROJECT_PATH (GitLab, «group/project») или GITHUB_REPO_NAME (GHES, «owner/repo»).
+# Пусто — проверять все проекты. Пример: '^(backend|frontend)/'
 PROJECT_INCLUDE_RE=''
 # Проекты вне flow (инфраструктура, зеркала). Пример: '^(infra|mirrors)/'
 PROJECT_EXCLUDE_RE=''
@@ -44,7 +43,7 @@ is_zero_sha() { case "$1" in *[!0]*) return 1 ;; *) return 0 ;; esac; }
 is_skip_subject() { [ -n "$SKIP_SUBJECT_RE" ] && matches "$1" "$SKIP_SUBJECT_RE"; }
 
 repo_dir=$(git rev-parse --absolute-git-dir 2>/dev/null || pwd)
-project=${GL_PROJECT_PATH:-${GITHUB_REPO_NAME:-$repo_dir}}
+project=${GL_PROJECT_PATH:-${GITHUB_REPO_NAME:-}}
 [ -n "$SKIP_REPO_DIR_RE" ] && matches "$repo_dir" "$SKIP_REPO_DIR_RE" && exit 0
 case "${GL_REPOSITORY:-}" in snippet-*) exit 0 ;; esac
 [ -n "$PROJECT_INCLUDE_RE" ] && ! matches "$project" "$PROJECT_INCLUDE_RE" && exit 0

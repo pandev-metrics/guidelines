@@ -256,8 +256,8 @@ expect PASS 'server: GL_PROJECT_PATH in PROJECT_EXCLUDE_RE' sh -c "
 sed "s|^PROJECT_INCLUDE_RE=.*|PROJECT_INCLUDE_RE='^backend/'|" "$ROOT/server/pre-receive.example" > "$T/r.git/hooks/pre-receive"
 expect REJECT 'server: GL_PROJECT_PATH inside PROJECT_INCLUDE_RE' env GL_PROJECT_PATH=backend/api git push origin misc:refs/heads/misc2
 expect PASS 'server: GL_PROJECT_PATH outside PROJECT_INCLUDE_RE' env GL_PROJECT_PATH=frontend/app git push origin misc:refs/heads/misc2
-sed "s|^PROJECT_INCLUDE_RE=.*|PROJECT_INCLUDE_RE='/r\\\\.git\$'|" "$ROOT/server/pre-receive.example" > "$T/r.git/hooks/pre-receive"
-expect REJECT 'server: own server, include by absolute repo dir' git push origin misc:refs/heads/misc3
+expect REJECT 'server: GITHUB_REPO_NAME inside PROJECT_INCLUDE_RE' env GITHUB_REPO_NAME=backend/api git push origin misc:refs/heads/misc3
+cp "$ROOT/server/pre-receive.example" "$T/r.git/hooks/pre-receive"
 expect PASS 'server: GL_REPOSITORY=snippet-* skipped' env GL_REPOSITORY=snippet-7 git push origin misc:refs/heads/misc3
 cp "$ROOT/server/pre-receive.example" "$T/r.git/hooks/pre-receive"
 
