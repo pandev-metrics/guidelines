@@ -29,7 +29,7 @@ feature/PROJ-42 - Краткое описание изменения
 
 Допустимые типы: `feature`, `bugfix`, `hotfix`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`, `style`, `release`.
 
-Исключения: сообщения `Merge …` и `Revert …`.
+Исключения: сообщения `Merge …` и `Revert …`. Для `fixup!` / `squash!` / `amend!` проверяется исходный subject после префикса.
 
 ## Merge requests
 

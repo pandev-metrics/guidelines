@@ -1,51 +1,51 @@
 #!/bin/sh
-# Перед пушем: имя текущей ветки и subject каждого нового коммита.
+# Перед пушем: имя каждой пушащейся ветки и subject каждого коммита, которого ещё нет на remote.
 # Env-ветки без ключа пропускаются. Обход: --no-verify (закрывается server pre-receive).
 set -eu
 
-BRANCH=$(git branch --show-current 2>/dev/null || true)
-[ -n "$BRANCH" ] || exit 0
-
-# Интеграционные / env ветки — без требования ключа
-case "$BRANCH" in
-  main|master|dev|test|demo|prod|stable|develop|release/*|hotfix)
-    exit 0
-    ;;
-esac
-
 BRANCH_RE='^(feature|bugfix|hotfix)/[A-Z]+-[0-9]+$'
 COMMIT_RE='^(feature|bugfix|hotfix|fix|refactor|docs|test|chore|ci|style|release)/[A-Z]+-[0-9]+ - .+'
+z40=0000000000000000000000000000000000000000
 
-if ! printf '%s' "$BRANCH" | grep -qE "$BRANCH_RE"; then
-  echo "git-flow: имя ветки должно быть feature/PROJ-123 (или bugfix/hotfix), без суффикса." >&2
-  echo "Сейчас: $BRANCH" >&2
-  exit 1
-fi
+is_env_branch() {
+  case "$1" in
+    main|master|dev|develop|test|demo|prod|stable|release/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # stdin: <local_ref> <local_sha> <remote_ref> <remote_sha>
-z40=0000000000000000000000000000000000000000
 while read -r local_ref local_sha remote_ref remote_sha
 do
   [ -n "${local_sha:-}" ] || continue
-  if [ "$local_sha" = "$z40" ]; then
-    continue
+  [ "$local_sha" = "$z40" ] && continue
+
+  case "$remote_ref" in
+    refs/heads/*) branch=${remote_ref#refs/heads/} ;;
+    *) continue ;;
+  esac
+
+  if ! is_env_branch "$branch" && ! printf '%s' "$branch" | grep -qE "$BRANCH_RE"; then
+    echo "git-flow: имя ветки должно быть feature/PROJ-123 (или bugfix/hotfix), без суффикса." >&2
+    echo "Пушится: ${branch}" >&2
+    exit 1
   fi
+
   if [ "$remote_sha" = "$z40" ]; then
-    range=$local_sha
+    commits=$(git rev-list "$local_sha" --not --remotes)
   else
-    range=${remote_sha}..${local_sha}
+    commits=$(git rev-list "${remote_sha}..${local_sha}")
   fi
-  # Только коммиты, которых ещё нет на remote
-  commits=$(git rev-list "$range" 2>/dev/null || true)
-  [ -n "$commits" ] || continue
+
   for sha in $commits; do
     subj=$(git log -1 --format=%s "$sha")
     case "$subj" in
       Merge*|Revert*) continue ;;
     esac
+    subj=$(printf '%s' "$subj" | sed -E 's/^((fixup|squash|amend)! )+//')
     if ! printf '%s' "$subj" | grep -qE "$COMMIT_RE"; then
-      echo "git-flow: коммит $sha не в формате «feature/PROJ-123 - Описание»:" >&2
-      echo "  $subj" >&2
+      echo "git-flow: коммит ${sha} не в формате «feature/PROJ-123 - Описание»:" >&2
+      echo "  ${subj}" >&2
       exit 1
     fi
   done

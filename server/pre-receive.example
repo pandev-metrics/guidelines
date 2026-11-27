@@ -2,6 +2,8 @@
 # Пример server-side хука (GitLab custom hook / bare repo hooks/pre-receive).
 # Отклоняет push, если ветка или commit subject не соответствуют git flow.
 # Скопируйте как hooks/pre-receive на сервере и сделайте исполняемым.
+# Ставьте после первого пуша env-веток: их историю хук тоже проверяет.
+# GitHub.com pre-receive не поддерживает — там используйте rulesets (см. README).
 #
 # stdin: <oldrev> <newrev> <refname>
 set -eu
@@ -13,8 +15,7 @@ z40=0000000000000000000000000000000000000000
 # Ветки без ключа задачи (защитите их отдельно branch protection)
 is_env_branch() {
   case "$1" in
-    main|master|dev|test|demo|prod|stable|develop) return 0 ;;
-    release/*) return 0 ;;
+    main|master|dev|develop|test|demo|prod|stable|release/*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -34,7 +35,7 @@ do
 
   if ! is_env_branch "$branch"; then
     if ! printf '%s' "$branch" | grep -qE "$BRANCH_RE"; then
-      echo "git-flow: ветка «$branch» должна быть feature/PROJ-123 (или bugfix/hotfix), без суффикса." >&2
+      echo "git-flow: ветка «${branch}» должна быть feature/PROJ-123 (или bugfix/hotfix), без суффикса." >&2
       exit 1
     fi
   fi
@@ -51,9 +52,10 @@ do
     case "$subj" in
       Merge*|Revert*) continue ;;
     esac
+    subj=$(printf '%s' "$subj" | sed -E 's/^((fixup|squash|amend)! )+//')
     if ! printf '%s' "$subj" | grep -qE "$COMMIT_RE"; then
-      echo "git-flow: коммит $sha: нужно «feature/PROJ-123 - Описание»" >&2
-      echo "  $subj" >&2
+      echo "git-flow: коммит ${sha}: нужно «feature/PROJ-123 - Описание»" >&2
+      echo "  ${subj}" >&2
       exit 1
     fi
   done

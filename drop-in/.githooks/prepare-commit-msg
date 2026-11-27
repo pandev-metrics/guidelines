@@ -31,7 +31,7 @@ read -r FIRST_LINE < "$MSG_FILE" || true
 [ -n "$FIRST_LINE" ] || exit 0
 
 case "$FIRST_LINE" in
-  Merge*|Revert*) exit 0 ;;
+  Merge*|Revert*|fixup!*|squash!*|amend!*) exit 0 ;;
 esac
 
 case "$FIRST_LINE" in
@@ -66,7 +66,6 @@ case "$FIRST_LINE" in
 esac
 
 NEW_FIRST_LINE="$BRANCH - $REST"
-NEW_FIRST_LINE=$(printf '%s' "$NEW_FIRST_LINE" | cut -c1-100)
 
 TMP=${MSG_FILE}.tmp
 printf '%s\n' "$NEW_FIRST_LINE" > "$TMP"

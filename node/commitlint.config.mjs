@@ -3,7 +3,7 @@ export default {
   parserPreset: {
     parserOpts: {
       // feature/PROJ-123 - Description
-      headerPattern: /^(\w+)\/([A-Z]+-\d+)\s*-\s*(.+)$/,
+      headerPattern: /^(\w+)\/([A-Z]+-\d+) - (.+)$/,
       headerCorrespondence: ["type", "ticket", "subject"],
     },
   },
