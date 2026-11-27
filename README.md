@@ -13,7 +13,7 @@
 | Суффикс после номера | **запрещён** (`feature/PROJ-123-login` — нет) |
 | Коммит | `feature/PROJ-123 - Краткое описание` |
 | База для фич | `dev` (или ваша интеграционная ветка) |
-| Env-ветки без ключа | `main` · `master` · `dev` · `develop` · `test` · `demo` · `prod` · `stable` · `release/*` |
+| Env-ветки без ключа | `main` · `master` · `dev` · `develop` · `test` · `stage` · `staging` · `demo` · `prod` · `stable` · `release/*` |
 | Служебные коммиты | `Merge …`, `Revert …`; у `fixup!` / `squash!` / `amend!` проверяется исходный subject |
 
 Ключ задачи: `[A-Z]+-[0-9]+` (Jira, YouTrack, Linear, Task Flow и т.п.).

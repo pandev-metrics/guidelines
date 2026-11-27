@@ -16,7 +16,8 @@ git checkout -b feature/<TICKET-KEY>
 - Exact key from the tracker (`PROJ-123`). Do not invent keys.
 - Allowed prefixes: `feature/`, `bugfix/`, `hotfix/`.
 - **No slug after the number** — `feature/PROJ-123` only, never `feature/PROJ-123-short-name`.
-- Do not work on `main` / `master` / `dev` / `test` / `demo` / `prod` for ticket work.
+- Do not work on `main` / `master` / `dev` / `test` / `stage` / `demo` / `prod` for ticket work.
+- Confirm with `git branch --show-current` that the ticket branch is checked out before editing files.
 
 ## Commit
 

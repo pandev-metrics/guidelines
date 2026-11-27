@@ -15,7 +15,7 @@ z40=0000000000000000000000000000000000000000
 # Ветки без ключа задачи (защитите их отдельно branch protection)
 is_env_branch() {
   case "$1" in
-    main|master|dev|develop|test|demo|prod|stable|release/*) return 0 ;;
+    main|master|dev|develop|test|stage|staging|demo|prod|stable|release/*) return 0 ;;
     *) return 1 ;;
   esac
 }
